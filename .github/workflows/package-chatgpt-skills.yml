@@ -1,0 +1,179 @@
+name: Package ChatGPT Web Skills
+
+on:
+  push:
+    branches:
+      - skill-packaging-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout marketing skills
+        uses: actions/checkout@v4
+        with:
+          ref: skill-packaging-build
+          path: marketing
+
+      - name: Checkout social media skills
+        uses: actions/checkout@v4
+        with:
+          repository: GP1509/social-media-skills
+          ref: chatgpt-web
+          path: social
+
+      - name: Package curated skills
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work dist
+
+          package_skill() {
+            local src="$1"
+            local license="$2"
+            local num="$3"
+            local name="$4"
+            local dst="work/$name"
+            rm -rf "$dst"
+            mkdir -p "$dst"
+            cp -a "$src"/. "$dst"/
+            rm -rf "$dst/evals" "$dst/.DS_Store"
+            cp "$license" "$dst/LICENSE"
+            test -f "$dst/SKILL.md"
+            (cd "$dst" && zip -qr "../../dist/${num}-${name}.skill" . -x '*.DS_Store')
+          }
+
+          package_skill marketing/skills/product-marketing marketing/LICENSE 01 product-marketing
+          package_skill marketing/skills/customer-research marketing/LICENSE 02 customer-research
+          package_skill marketing/skills/site-architecture marketing/LICENSE 03 site-architecture
+          package_skill marketing/skills/copywriting marketing/LICENSE 04 copywriting
+          package_skill marketing/skills/copy-editing marketing/LICENSE 05 copy-editing
+          package_skill marketing/skills/cro marketing/LICENSE 06 cro
+          package_skill marketing/skills/offers marketing/LICENSE 07 offers
+          package_skill marketing/skills/marketing-psychology marketing/LICENSE 08 marketing-psychology
+          package_skill marketing/skills/seo-audit marketing/LICENSE 09 seo-audit
+          package_skill marketing/skills/ai-seo marketing/LICENSE 10 ai-seo
+          package_skill marketing/skills/schema marketing/LICENSE 11 schema
+          package_skill marketing/skills/content-strategy marketing/LICENSE 12 content-strategy
+          package_skill marketing/skills/social marketing/LICENSE 13 social
+          package_skill marketing/skills/analytics marketing/LICENSE 14 analytics
+          package_skill social/skills/voice-builder social/LICENSE 15 voice-builder
+          package_skill social/skills/content-matrix social/LICENSE 16 content-matrix
+
+          cat > dist/LEIA-ME.txt <<'EOF'
+          CHATGPT WEB — SKILLS DE MARKETING E SOCIAL
+
+          Estes arquivos .skill são pacotes individuais. O ZIP mestre serve apenas para transporte.
+          Não envie o ZIP mestre como uma única Skill.
+
+          Ordem de instalação recomendada:
+          BLOCO 1 — Fundação
+          01 product-marketing
+          02 customer-research
+          15 voice-builder
+
+          BLOCO 2 — Sites e conversão
+          03 site-architecture
+          07 offers
+          04 copywriting
+          05 copy-editing
+          06 cro
+          08 marketing-psychology
+
+          BLOCO 3 — SEO e mensuração
+          09 seo-audit
+          10 ai-seo
+          11 schema
+          14 analytics
+
+          BLOCO 4 — Conteúdo e social
+          12 content-strategy
+          13 social
+          16 content-matrix
+
+          Fontes:
+          GP1509/marketingskills @ chatgpt-web
+          GP1509/social-media-skills @ chatgpt-web
+          EOF
+
+          python - <<'PY'
+          import pathlib, re, zipfile, sys
+          dist = pathlib.Path('dist')
+          expected = {
+            '01-product-marketing.skill':'product-marketing',
+            '02-customer-research.skill':'customer-research',
+            '03-site-architecture.skill':'site-architecture',
+            '04-copywriting.skill':'copywriting',
+            '05-copy-editing.skill':'copy-editing',
+            '06-cro.skill':'cro',
+            '07-offers.skill':'offers',
+            '08-marketing-psychology.skill':'marketing-psychology',
+            '09-seo-audit.skill':'seo-audit',
+            '10-ai-seo.skill':'ai-seo',
+            '11-schema.skill':'schema',
+            '12-content-strategy.skill':'content-strategy',
+            '13-social.skill':'social',
+            '14-analytics.skill':'analytics',
+            '15-voice-builder.skill':'voice-builder',
+            '16-content-matrix.skill':'content-matrix',
+          }
+          errors=[]
+          warnings=[]
+          for fn,name in expected.items():
+            p=dist/fn
+            if not p.exists():
+              errors.append(f'missing package: {fn}'); continue
+            with zipfile.ZipFile(p) as z:
+              bad=z.testzip()
+              if bad: errors.append(f'{fn}: corrupt member {bad}')
+              names=set(z.namelist())
+              if 'SKILL.md' not in names: errors.append(f'{fn}: missing root SKILL.md'); continue
+              if 'LICENSE' not in names: errors.append(f'{fn}: missing LICENSE')
+              if any('/evals/' in '/'+x or x.startswith('evals/') for x in names): errors.append(f'{fn}: evals included')
+              text=z.read('SKILL.md').decode('utf-8')
+              m=re.search(r'^---\s*\n(.*?)\n---', text, re.S)
+              if not m: errors.append(f'{fn}: missing YAML frontmatter'); continue
+              front=m.group(1)
+              nm=re.search(r'^name:\s*["\']?([^"\'\n]+)', front, re.M)
+              if not nm or nm.group(1).strip()!=name: errors.append(f'{fn}: name mismatch')
+              if not re.search(r'^description:\s*', front, re.M): errors.append(f'{fn}: missing description')
+              for member in [x for x in names if x.endswith('.md')]:
+                body=z.read(member).decode('utf-8', errors='replace')
+                base=pathlib.PurePosixPath(member).parent
+                for link in re.findall(r'\[[^\]]*\]\(([^)]+)\)', body):
+                  target=link.split('#',1)[0]
+                  if not target or '://' in target or target.startswith(('mailto:','#')): continue
+                  resolved=str(base.joinpath(target))
+                  parts=[]
+                  escaped=False
+                  for part in pathlib.PurePosixPath(resolved).parts:
+                    if part=='..':
+                      if parts: parts.pop()
+                      else: escaped=True
+                    elif part!='.': parts.append(part)
+                  normalized='/'.join(parts)
+                  if escaped:
+                    warnings.append(f'{fn}: external relative reference from {member}: {link}')
+                  elif normalized not in names:
+                    warnings.append(f'{fn}: unresolved local reference from {member}: {link}')
+          print('\n'.join('WARNING: '+w for w in warnings))
+          if errors:
+            print('\n'.join('ERROR: '+e for e in errors))
+            sys.exit(1)
+          print(f'Validated {len(expected)} skill packages successfully.')
+          PY
+
+          (cd dist && zip -q marketing-social-skills-chatgpt-web.zip *.skill LEIA-ME.txt)
+          unzip -t dist/marketing-social-skills-chatgpt-web.zip
+
+      - name: Upload packaged skills
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketing-social-skills-chatgpt-web
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
