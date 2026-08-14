@@ -32,6 +32,30 @@ jobs:
           set -euo pipefail
           mkdir -p work dist
 
+          compatibility_patch() {
+            local dst="$1"
+            python - "$dst" <<'PY'
+          import pathlib, re, sys
+          root = pathlib.Path(sys.argv[1])
+          for p in root.rglob('*.md'):
+              text = p.read_text(encoding='utf-8')
+              # Upstream tool-registry links point outside an individual Skill bundle.
+              # Keep the label and make availability explicit instead of shipping a broken link.
+              text = re.sub(
+                  r'\[([^\]]+)\]\((?:\.\./)+tools/[^)]+\)',
+                  r'\1 (optional integration; use only when actually available in the current ChatGPT environment)',
+                  text,
+              )
+              # pricing is intentionally not part of the curated installation set.
+              text = re.sub(
+                  r'\[(`?pricing`?)\]\((?:\.\./)+pricing/SKILL\.md\)',
+                  r'\1 (optional separate Skill; install only when needed)',
+                  text,
+              )
+              p.write_text(text, encoding='utf-8')
+          PY
+          }
+
           package_skill() {
             local src="$1"
             local license="$2"
@@ -44,6 +68,7 @@ jobs:
             rm -rf "$dst/evals" "$dst/.DS_Store"
             cp "$license" "$dst/LICENSE"
             test -f "$dst/SKILL.md"
+            compatibility_patch "$dst"
             (cd "$dst" && zip -qr "../../dist/${num}-${name}.skill" . -x '*.DS_Store')
           }
 
@@ -98,6 +123,9 @@ jobs:
           Fontes:
           GP1509/marketingskills @ chatgpt-web
           GP1509/social-media-skills @ chatgpt-web
+
+          Nota de compatibilidade:
+          Referências do upstream para integrações externas fora da pasta da Skill são convertidas no pacote em indicações de integração opcional. Nenhuma Skill deve presumir que uma integração está conectada sem verificar.
           EOF
 
           python - <<'PY'
@@ -146,7 +174,7 @@ jobs:
                 base=pathlib.PurePosixPath(member).parent
                 for link in re.findall(r'\[[^\]]*\]\(([^)]+)\)', body):
                   target=link.split('#',1)[0]
-                  if not target or '://' in target or target.startswith(('mailto:','#')): continue
+                  if not target or '://' in target or target.startswith(('mailto:','#','/')): continue
                   resolved=str(base.joinpath(target))
                   parts=[]
                   escaped=False
@@ -157,14 +185,14 @@ jobs:
                     elif part!='.': parts.append(part)
                   normalized='/'.join(parts)
                   if escaped:
-                    warnings.append(f'{fn}: external relative reference from {member}: {link}')
+                    errors.append(f'{fn}: package-escaping relative reference from {member}: {link}')
                   elif normalized not in names:
-                    warnings.append(f'{fn}: unresolved local reference from {member}: {link}')
+                    errors.append(f'{fn}: unresolved local reference from {member}: {link}')
           print('\n'.join('WARNING: '+w for w in warnings))
           if errors:
             print('\n'.join('ERROR: '+e for e in errors))
             sys.exit(1)
-          print(f'Validated {len(expected)} skill packages successfully.')
+          print(f'Validated {len(expected)} self-contained skill packages successfully.')
           PY
 
           (cd dist && zip -q marketing-social-skills-chatgpt-web.zip *.skill LEIA-ME.txt)
