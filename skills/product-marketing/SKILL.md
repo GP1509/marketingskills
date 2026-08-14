@@ -4,7 +4,7 @@ description: "When the user wants to create or update their product marketing co
 metadata:
   version: 2.1.0
   upstream: "coreyhaines31/marketingskills"
-  adaptation: "chatgpt-web-1.0.1"
+  adaptation: "chatgpt-web-1.0.2"
 ---
 
 # Product Marketing Context
@@ -20,8 +20,9 @@ In ChatGPT Web:
 - Treat `product-marketing-context.md` as the canonical portable context file for the current brand, client, product, or business. This filename is intentionally compatible with the legacy filename already recognized by the other upstream marketing skills.
 - Before asking questions, inspect information already available in the current conversation, Project context, attached files, and connected sources that are actually accessible.
 - Never claim to have read, created, updated, or saved a file unless that action really occurred on the current surface.
+- Never end a ChatGPT Web workflow by proposing `.agents/product-marketing.md` or `.claude/product-marketing.md` as the next save target. Those names are recognized only for importing old context.
 - If `product-marketing-context.md` is available in the current Project or conversation, read it before gathering more context.
-- Also recognize `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` when the user provides them.
+- Legacy paths `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` are read-only compatibility aliases in ChatGPT Web. You may read them when the user provides them, but never create, update, recommend saving to, or present them as the canonical destination. Always create or update `product-marketing-context.md` instead.
 - When a file-creation capability is available, create or update `product-marketing-context.md` as a reusable file. If persistent file creation is not available, return the complete Markdown document and clearly tell the user it has not been persisted yet.
 - Downstream marketing skills should reuse this context when it is available instead of repeating foundational questions.
 - Respond in the user's language unless they request another language.
@@ -30,7 +31,7 @@ In ChatGPT Web:
 
 ### Step 1: Check for Existing Context
 
-First, check the current conversation, Project context, attached files, and accessible connected sources for `product-marketing-context.md`. Also recognize `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` when available.
+First, check the current conversation, Project context, attached files, and accessible connected sources for `product-marketing-context.md`. You may also read `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` only as legacy input aliases when available. In ChatGPT Web, never create or update those legacy paths; the canonical output destination is always `product-marketing-context.md`.
 
 **If existing context is available:**
 - Read it and summarize what's captured — note its current **Document version** and the last few **Changelog** entries so the user sees where the doc stands and what's changed recently.
