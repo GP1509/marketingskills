@@ -1,0 +1,53 @@
+name: Fix Product Marketing ChatGPT Web
+
+on:
+  push:
+    branches:
+      - skill-packaging-build
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ChatGPT Web branch
+        uses: actions/checkout@v4
+        with:
+          ref: chatgpt-web
+          fetch-depth: 0
+
+      - name: Harden portable context rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('skills/product-marketing/SKILL.md')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace('adaptation: "chatgpt-web-1.0.1"', 'adaptation: "chatgpt-web-1.0.2"')
+          text = text.replace(
+              '- Also recognize `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` when the user provides them.',
+              '- Legacy paths `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` are read-only compatibility aliases in ChatGPT Web. You may read them when the user provides them, but never create, update, recommend saving to, or present them as the canonical destination. Always create or update `product-marketing-context.md` instead.'
+          )
+          text = text.replace(
+              'First, check the current conversation, Project context, attached files, and accessible connected sources for `product-marketing-context.md`. Also recognize `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` when available.',
+              'First, check the current conversation, Project context, attached files, and accessible connected sources for `product-marketing-context.md`. You may also read `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` only as legacy input aliases when available. In ChatGPT Web, never create or update those legacy paths; the canonical output destination is always `product-marketing-context.md`.'
+          )
+          marker = '- Never claim to have read, created, updated, or saved a file unless that action really occurred on the current surface.\n'
+          extra = '- Never end a ChatGPT Web workflow by proposing `.agents/product-marketing.md` or `.claude/product-marketing.md` as the next save target. Those names are recognized only for importing old context.\n'
+          if extra not in text:
+              text = text.replace(marker, marker + extra)
+          p.write_text(text, encoding='utf-8')
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add skills/product-marketing/SKILL.md
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "Harden ChatGPT Web product context persistence"
+            git push origin HEAD:chatgpt-web
+          fi
