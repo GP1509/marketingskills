@@ -13,20 +13,27 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout marketing skills
+      - name: Checkout packaging branch
         uses: actions/checkout@v4
         with:
           ref: skill-packaging-build
+          path: packaging
+
+      - name: Checkout marketing skills source
+        uses: actions/checkout@v4
+        with:
+          repository: GP1509/marketingskills
+          ref: chatgpt-web
           path: marketing
 
-      - name: Checkout social media skills
+      - name: Checkout social media skills source
         uses: actions/checkout@v4
         with:
           repository: GP1509/social-media-skills
           ref: chatgpt-web
           path: social
 
-      - name: Package curated skills
+      - name: Build curated skill directories
         shell: bash
         run: |
           set -euo pipefail
@@ -39,14 +46,11 @@ jobs:
           root = pathlib.Path(sys.argv[1])
           for p in root.rglob('*.md'):
               text = p.read_text(encoding='utf-8')
-              # Upstream tool-registry links point outside an individual Skill bundle.
-              # Keep the label and make availability explicit instead of shipping a broken link.
               text = re.sub(
                   r'\[([^\]]+)\]\((?:\.\./)+tools/[^)]+\)',
                   r'\1 (optional integration; use only when actually available in the current ChatGPT environment)',
                   text,
               )
-              # pricing is intentionally not part of the curated installation set.
               text = re.sub(
                   r'\[(`?pricing`?)\]\((?:\.\./)+pricing/SKILL\.md\)',
                   r'\1 (optional separate Skill; install only when needed)',
@@ -56,11 +60,10 @@ jobs:
           PY
           }
 
-          package_skill() {
+          prepare_skill() {
             local src="$1"
             local license="$2"
-            local num="$3"
-            local name="$4"
+            local name="$3"
             local dst="work/$name"
             rm -rf "$dst"
             mkdir -p "$dst"
@@ -69,33 +72,76 @@ jobs:
             cp "$license" "$dst/LICENSE"
             test -f "$dst/SKILL.md"
             compatibility_patch "$dst"
-            (cd "$dst" && zip -qr "../../dist/${num}-${name}.skill" . -x '*.DS_Store')
           }
 
-          package_skill marketing/skills/product-marketing marketing/LICENSE 01 product-marketing
-          package_skill marketing/skills/customer-research marketing/LICENSE 02 customer-research
-          package_skill marketing/skills/site-architecture marketing/LICENSE 03 site-architecture
-          package_skill marketing/skills/copywriting marketing/LICENSE 04 copywriting
-          package_skill marketing/skills/copy-editing marketing/LICENSE 05 copy-editing
-          package_skill marketing/skills/cro marketing/LICENSE 06 cro
-          package_skill marketing/skills/offers marketing/LICENSE 07 offers
-          package_skill marketing/skills/marketing-psychology marketing/LICENSE 08 marketing-psychology
-          package_skill marketing/skills/seo-audit marketing/LICENSE 09 seo-audit
-          package_skill marketing/skills/ai-seo marketing/LICENSE 10 ai-seo
-          package_skill marketing/skills/schema marketing/LICENSE 11 schema
-          package_skill marketing/skills/content-strategy marketing/LICENSE 12 content-strategy
-          package_skill marketing/skills/social marketing/LICENSE 13 social
-          package_skill marketing/skills/analytics marketing/LICENSE 14 analytics
-          package_skill social/skills/voice-builder social/LICENSE 15 voice-builder
-          package_skill social/skills/content-matrix social/LICENSE 16 content-matrix
+          prepare_skill marketing/skills/product-marketing marketing/LICENSE product-marketing
+          prepare_skill marketing/skills/customer-research marketing/LICENSE customer-research
+          prepare_skill marketing/skills/site-architecture marketing/LICENSE site-architecture
+          prepare_skill marketing/skills/copywriting marketing/LICENSE copywriting
+          prepare_skill marketing/skills/copy-editing marketing/LICENSE copy-editing
+          prepare_skill marketing/skills/cro marketing/LICENSE cro
+          prepare_skill marketing/skills/offers marketing/LICENSE offers
+          prepare_skill marketing/skills/marketing-psychology marketing/LICENSE marketing-psychology
+          prepare_skill marketing/skills/seo-audit marketing/LICENSE seo-audit
+          prepare_skill marketing/skills/ai-seo marketing/LICENSE ai-seo
+          prepare_skill marketing/skills/schema marketing/LICENSE schema
+          prepare_skill marketing/skills/content-strategy marketing/LICENSE content-strategy
+          prepare_skill marketing/skills/social marketing/LICENSE social
+          prepare_skill marketing/skills/analytics marketing/LICENSE analytics
+          prepare_skill social/skills/voice-builder social/LICENSE voice-builder
+          prepare_skill social/skills/content-matrix social/LICENSE content-matrix
+
+      - name: Validate with official Agent Skills reference library
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/agentskills/agentskills.git /tmp/agentskills
+          python3 -m venv /tmp/skills-ref-venv
+          /tmp/skills-ref-venv/bin/pip install -q -e /tmp/agentskills/skills-ref
+          for skill_dir in work/*; do
+            echo "Validating $skill_dir"
+            /tmp/skills-ref-venv/bin/skills-ref validate "$skill_dir"
+          done
+
+      - name: Package spec-compliant skill bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          package_skill() {
+            local num="$1"
+            local name="$2"
+            # Agent Skills are directories. Keep the skill directory as the top-level
+            # entry inside the uploaded archive instead of putting SKILL.md at archive root.
+            (cd work && zip -qr "../dist/${num}-${name}.skill" "$name" -x '*.DS_Store')
+          }
+
+          package_skill 01 product-marketing
+          package_skill 02 customer-research
+          package_skill 03 site-architecture
+          package_skill 04 copywriting
+          package_skill 05 copy-editing
+          package_skill 06 cro
+          package_skill 07 offers
+          package_skill 08 marketing-psychology
+          package_skill 09 seo-audit
+          package_skill 10 ai-seo
+          package_skill 11 schema
+          package_skill 12 content-strategy
+          package_skill 13 social
+          package_skill 14 analytics
+          package_skill 15 voice-builder
+          package_skill 16 content-matrix
 
           cat > dist/LEIA-ME.txt <<'EOF'
           CHATGPT WEB — SKILLS DE MARKETING E SOCIAL
 
-          Estes arquivos .skill são pacotes individuais. O ZIP mestre serve apenas para transporte.
-          Não envie o ZIP mestre como uma única Skill.
+          PACOTES RECONSTRUÍDOS NO PADRÃO AGENT SKILLS.
+          Cada .skill contém uma pasta de Skill na raiz e, dentro dela, o SKILL.md e seus recursos.
+          O ZIP mestre serve apenas para transporte. Não envie o ZIP mestre como uma única Skill.
 
-          Ordem de instalação recomendada:
+          Antes de instalar esta revisão, remova versões anteriores das mesmas Skills para evitar colisões de nome.
+
           BLOCO 1 — Fundação
           01 product-marketing
           02 customer-research
@@ -124,11 +170,11 @@ jobs:
           GP1509/marketingskills @ chatgpt-web
           GP1509/social-media-skills @ chatgpt-web
 
-          Nota de compatibilidade:
-          Referências do upstream para integrações externas fora da pasta da Skill são convertidas no pacote em indicações de integração opcional. Nenhuma Skill deve presumir que uma integração está conectada sem verificar.
+          Validação:
+          Todos os 16 diretórios são validados com a biblioteca oficial skills-ref antes do empacotamento.
           EOF
 
-          python - <<'PY'
+          python3 - <<'PY'
           import pathlib, re, zipfile, sys
           dist = pathlib.Path('dist')
           expected = {
@@ -150,58 +196,45 @@ jobs:
             '16-content-matrix.skill':'content-matrix',
           }
           errors=[]
-          warnings=[]
           for fn,name in expected.items():
-            p=dist/fn
-            if not p.exists():
-              errors.append(f'missing package: {fn}'); continue
-            with zipfile.ZipFile(p) as z:
-              bad=z.testzip()
-              if bad: errors.append(f'{fn}: corrupt member {bad}')
-              names=set(z.namelist())
-              if 'SKILL.md' not in names: errors.append(f'{fn}: missing root SKILL.md'); continue
-              if 'LICENSE' not in names: errors.append(f'{fn}: missing LICENSE')
-              if any('/evals/' in '/'+x or x.startswith('evals/') for x in names): errors.append(f'{fn}: evals included')
-              text=z.read('SKILL.md').decode('utf-8')
-              m=re.search(r'^---\s*\n(.*?)\n---', text, re.S)
-              if not m: errors.append(f'{fn}: missing YAML frontmatter'); continue
-              front=m.group(1)
-              nm=re.search(r'^name:\s*["\']?([^"\'\n]+)', front, re.M)
-              if not nm or nm.group(1).strip()!=name: errors.append(f'{fn}: name mismatch')
-              if not re.search(r'^description:\s*', front, re.M): errors.append(f'{fn}: missing description')
-              for member in [x for x in names if x.endswith('.md')]:
-                body=z.read(member).decode('utf-8', errors='replace')
-                base=pathlib.PurePosixPath(member).parent
-                for link in re.findall(r'\[[^\]]*\]\(([^)]+)\)', body):
-                  target=link.split('#',1)[0]
-                  if not target or '://' in target or target.startswith(('mailto:','#','/')): continue
-                  resolved=str(base.joinpath(target))
-                  parts=[]
-                  escaped=False
-                  for part in pathlib.PurePosixPath(resolved).parts:
-                    if part=='..':
-                      if parts: parts.pop()
-                      else: escaped=True
-                    elif part!='.': parts.append(part)
-                  normalized='/'.join(parts)
-                  if escaped:
-                    errors.append(f'{fn}: package-escaping relative reference from {member}: {link}')
-                  elif normalized not in names:
-                    errors.append(f'{fn}: unresolved local reference from {member}: {link}')
-          print('\n'.join('WARNING: '+w for w in warnings))
+              p=dist/fn
+              if not p.exists():
+                  errors.append(f'missing package: {fn}'); continue
+              with zipfile.ZipFile(p) as z:
+                  bad=z.testzip()
+                  if bad: errors.append(f'{fn}: corrupt member {bad}')
+                  names=set(z.namelist())
+                  skill_md=f'{name}/SKILL.md'
+                  license_file=f'{name}/LICENSE'
+                  if skill_md not in names:
+                      errors.append(f'{fn}: missing {skill_md}'); continue
+                  if license_file not in names:
+                      errors.append(f'{fn}: missing {license_file}')
+                  if 'SKILL.md' in names:
+                      errors.append(f'{fn}: invalid root-level SKILL.md')
+                  text=z.read(skill_md).decode('utf-8')
+                  m=re.search(r'^---\s*\n(.*?)\n---', text, re.S)
+                  if not m:
+                      errors.append(f'{fn}: missing YAML frontmatter'); continue
+                  front=m.group(1)
+                  nm=re.search(r'^name:\s*["\']?([^"\'\n]+)', front, re.M)
+                  if not nm or nm.group(1).strip()!=name:
+                      errors.append(f'{fn}: name does not match parent directory')
+                  if any(x.startswith(f'{name}/evals/') for x in names):
+                      errors.append(f'{fn}: evals included')
           if errors:
-            print('\n'.join('ERROR: '+e for e in errors))
-            sys.exit(1)
-          print(f'Validated {len(expected)} self-contained skill packages successfully.')
+              print('\n'.join('ERROR: '+e for e in errors))
+              sys.exit(1)
+          print(f'Validated archive structure for {len(expected)} skill packages successfully.')
           PY
 
-          (cd dist && zip -q marketing-social-skills-chatgpt-web.zip *.skill LEIA-ME.txt)
-          unzip -t dist/marketing-social-skills-chatgpt-web.zip
+          (cd dist && zip -q marketing-social-skills-chatgpt-web-v2.zip *.skill LEIA-ME.txt)
+          unzip -t dist/marketing-social-skills-chatgpt-web-v2.zip
 
       - name: Upload packaged skills
         uses: actions/upload-artifact@v4
         with:
-          name: marketing-social-skills-chatgpt-web
+          name: marketing-social-skills-chatgpt-web-v2
           path: dist/
           if-no-files-found: error
           retention-days: 30
