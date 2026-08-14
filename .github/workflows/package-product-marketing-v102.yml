@@ -1,0 +1,38 @@
+name: Package Product Marketing v1.0.2
+
+on:
+  push:
+    branches:
+      - skill-packaging-build
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ChatGPT Web branch
+        uses: actions/checkout@v4
+        with:
+          ref: chatgpt-web
+
+      - name: Package skill
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/product-marketing dist
+          cp skills/product-marketing/SKILL.md build/product-marketing/SKILL.md
+          cp LICENSE build/product-marketing/LICENSE
+          test "$(grep -c 'adaptation: \"chatgpt-web-1.0.2\"' build/product-marketing/SKILL.md)" -eq 1
+          test "$(grep -c 'Never end a ChatGPT Web workflow by proposing' build/product-marketing/SKILL.md)" -eq 1
+          (cd build/product-marketing && zip -qr ../../dist/01-product-marketing.skill .)
+          unzip -t dist/01-product-marketing.skill
+
+      - name: Upload skill
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-marketing-chatgpt-web-v1.0.2
+          path: dist/01-product-marketing.skill
+          if-no-files-found: error
+          retention-days: 30
