@@ -1,10 +1,10 @@
 ---
 name: product-marketing
-description: "When the user wants to create or update their product marketing context. Also use when the user mentions 'product context,' 'marketing context,' 'set up context,' 'positioning,' 'who is my target audience,' 'describe my product,' 'ICP,' 'ideal customer profile,' or wants to avoid repeating foundational information across marketing tasks. Use this at the start of any new marketing project before using other marketing skills. In ChatGPT Web, create or update a portable `product-marketing.md` context file (or equivalent Project context) that other marketing skills can reference for product, audience, positioning, voice, proof, and goals."
+description: "When the user wants to create or update their product marketing context. Also use when the user mentions 'product context,' 'marketing context,' 'set up context,' 'positioning,' 'who is my target audience,' 'describe my product,' 'ICP,' 'ideal customer profile,' or wants to avoid repeating foundational information across marketing tasks. Use this at the start of any new marketing project before using other marketing skills. In ChatGPT Web, create or update a portable `product-marketing-context.md` file (or equivalent Project context) that other marketing skills can reference for product, audience, positioning, voice, proof, and goals."
 metadata:
   version: 2.1.0
   upstream: "coreyhaines31/marketingskills"
-  adaptation: "chatgpt-web-1.0.0"
+  adaptation: "chatgpt-web-1.0.1"
 ---
 
 # Product Marketing Context
@@ -17,12 +17,12 @@ This adaptation preserves the original product-marketing methodology while repla
 
 In ChatGPT Web:
 
-- Treat `product-marketing.md` as the canonical portable context file for the current brand, client, product, or business.
+- Treat `product-marketing-context.md` as the canonical portable context file for the current brand, client, product, or business. This filename is intentionally compatible with the legacy filename already recognized by the other upstream marketing skills.
 - Before asking questions, inspect information already available in the current conversation, Project context, attached files, and connected sources that are actually accessible.
 - Never claim to have read, created, updated, or saved a file unless that action really occurred on the current surface.
-- If `product-marketing.md` is available in the current Project or conversation, read it before gathering more context.
-- Also recognize legacy files named `.agents/product-marketing.md`, `.claude/product-marketing.md`, or `product-marketing-context.md` when the user provides them.
-- When a file-creation capability is available, create or update `product-marketing.md` as a reusable file. If persistent file creation is not available, return the complete Markdown document and clearly tell the user it has not been persisted yet.
+- If `product-marketing-context.md` is available in the current Project or conversation, read it before gathering more context.
+- Also recognize `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` when the user provides them.
+- When a file-creation capability is available, create or update `product-marketing-context.md` as a reusable file. If persistent file creation is not available, return the complete Markdown document and clearly tell the user it has not been persisted yet.
 - Downstream marketing skills should reuse this context when it is available instead of repeating foundational questions.
 - Respond in the user's language unless they request another language.
 
@@ -30,7 +30,7 @@ In ChatGPT Web:
 
 ### Step 1: Check for Existing Context
 
-First, check the current conversation, Project context, attached files, and accessible connected sources for `product-marketing.md`. Also recognize `.agents/product-marketing.md`, `.claude/product-marketing.md`, and the legacy filename `product-marketing-context.md` when available.
+First, check the current conversation, Project context, attached files, and accessible connected sources for `product-marketing-context.md`. Also recognize `.agents/product-marketing.md`, `.claude/product-marketing.md`, and `product-marketing.md` when available.
 
 **If existing context is available:**
 - Read it and summarize what's captured — note its current **Document version** and the last few **Changelog** entries so the user sees where the doc stands and what's changed recently.
@@ -146,7 +146,7 @@ The JTBD Four Forces:
 
 ## Step 3: Create the Document
 
-After gathering information, create or update `product-marketing.md` with this structure:
+After gathering information, create or update `product-marketing-context.md` with this structure:
 
 ```markdown
 # Product Marketing Context
@@ -258,7 +258,7 @@ After gathering information, create or update `product-marketing.md` with this s
     - `- v2 (2026-06-02) — Rewrote value prop and objections after 5 customer interviews; added competitor Acme.`
   - Use today's date in ISO form (YYYY-MM-DD) for the entry and `Last updated`.
   - **Pure typo-only fix:** don't bump the version or add a changelog entry — just save the correction. Every other change bumps the version and gets an entry. When the change is a real repositioning, say so plainly — downstream skills will now generate against the new context.
-- If file creation/update is available, create or replace `product-marketing.md` and provide the resulting file to the user.
+- If file creation/update is available, create or replace `product-marketing-context.md` and provide the resulting file to the user.
 - If the current surface cannot persist that file, provide the complete Markdown in the response and state clearly that it still needs to be added to the relevant Project/files for reuse across future chats in that project.
 - Tell the user that other adapted marketing skills should use this context whenever it is available, and that the Changelog tracks positioning changes over time.
 
